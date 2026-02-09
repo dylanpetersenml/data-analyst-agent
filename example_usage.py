@@ -1,3 +1,7 @@
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
