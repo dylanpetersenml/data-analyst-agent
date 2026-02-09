@@ -105,6 +105,7 @@ class DataAnalystAgent:
 def make_data_analyst_agent(model, checkpointer: Optional[object] = None):
     """Build a parent graph that orchestrates existing cleaning and EDA graphs."""
 
+    # Compile each sub-graph once so they can be invoked as nodes.
     cleaning_graph = make_lightweight_data_cleaning_agent(
         model=model,
         checkpointer=checkpointer,
@@ -114,6 +115,7 @@ def make_data_analyst_agent(model, checkpointer: Optional[object] = None):
         checkpointer=checkpointer,
     )
 
+    # Shared state that flows through every node in the parent graph.
     class OrchestrationState(TypedDict):
         data_raw: dict
         user_instructions: Optional[str]
@@ -143,6 +145,7 @@ def make_data_analyst_agent(model, checkpointer: Optional[object] = None):
         """Invoke the cleaning sub-graph and return cleaned data."""
         logger.info("Running cleaning graph")
 
+        # Map parent state keys to the cleaning sub-graph's expected inputs.
         cleaning_response = cleaning_graph.invoke(
             {
                 "user_instructions": state.get("user_instructions"),
@@ -161,6 +164,7 @@ def make_data_analyst_agent(model, checkpointer: Optional[object] = None):
         """Invoke the EDA sub-graph on the cleaned data."""
         logger.info("Running EDA graph")
 
+        # Map cleaned data into the EDA sub-graph's expected inputs.
         eda_response = eda_graph.invoke(
             {
                 "dataframe": state.get("data_cleaned", {}),
@@ -184,6 +188,8 @@ def make_data_analyst_agent(model, checkpointer: Optional[object] = None):
             return "run_eda"
         return "end"
 
+    # Assemble the graph: pii_check -> clean_data -> run_eda -> END
+    # Conditional edges allow early exit if a guardrail or step fails.
     workflow = StateGraph(OrchestrationState)
     workflow.add_node("pii_check", pii_check_node)
     workflow.add_node("clean_data", clean_data_node)
