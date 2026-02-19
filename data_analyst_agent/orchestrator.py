@@ -4,7 +4,7 @@ import logging
 from typing import Optional, TypedDict
 
 import pandas as pd
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, StateGraph, START
 
 from data_cleaning_agent import make_lightweight_data_cleaning_agent
 from eda_workflow.eda_workflow import make_eda_baseline_workflow
@@ -165,16 +165,38 @@ def make_data_analyst_agent(model, checkpointer: Optional[object] = None):
         logger.info("Running EDA graph")
 
         # TODO: Invoke eda_graph with the cleaned data and return the response.
-        raise NotImplementedError("Implement run_eda_node")
+        eda_response = eda_graph.invoke(input={'dataframe':state['data_cleaned'],"results": {},
+            "observations": {},
+            "current_step": "",
+            "summary": "",
+            "recommendations": []})
+        return {
+            "eda_response" : eda_response
+        }
 
-    def route_after_cleaning(state: OrchestrationState) -> str:
-        """Route to EDA if cleaning succeeded, otherwise end."""
-        # TODO: Return "run_eda" or "end" based on the cleaning result.
-        raise NotImplementedError("Implement route_after_cleaning")
+    # def route_after_cleaning(state: OrchestrationState) -> str:
+    #     """Route to EDA if cleaning succeeded, otherwise end."""
+    #     # TODO: Return "run_eda" or "end" based on the cleaning result.
+    #     raise NotImplementedError("Implement route_after_cleaning")
 
     # TODO: Assemble the graph — add nodes, set entry point, and wire edges.
     workflow = StateGraph(OrchestrationState)
 
-    raise NotImplementedError("Assemble the graph")
+    # raise NotImplementedError("Assemble the graph")
+    workflow.add_node("pii_check", pii_check_node)
+    workflow.add_node("clean_data", clean_data_node)
+    workflow.add_node("run_eda", run_eda_node)
+    workflow.add_edge(START, "pii_check")
+    workflow.add_conditional_edges(
+        "pii_check",
+        route_after_pii_check,
+        {
+        "clean_data": "clean_data",
+        "end": END,
+        }
+    )
+    workflow.add_edge("clean_data", "run_eda")
+    workflow.add_edge("run_eda", END)
+
 
     return workflow.compile(checkpointer=checkpointer, name=AGENT_NAME)
