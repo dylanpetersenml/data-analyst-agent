@@ -140,6 +140,15 @@ def make_data_analyst_agent(model, checkpointer: Optional[object] = None):
         if state.get("pii_flagged_columns"):
             return "end"
         return "clean_data"
+    
+    def route_after_clean_data_check(state: OrchestrationState) -> str:
+        """Block the pipeline if PII columns were detected."""
+        # state['data_cleaner_error'] is None and stated['data_cleaned'] is None
+        if state['data_cleaned'] is None and state['cleaning_response']['data_cleaner_error']:
+            return "end"
+        return "run_eda"
+    
+    
 
     def clean_data_node(state: OrchestrationState) -> dict:
         """Invoke the cleaning sub-graph and return cleaned data."""
@@ -195,7 +204,16 @@ def make_data_analyst_agent(model, checkpointer: Optional[object] = None):
         "end": END,
         }
     )
-    workflow.add_edge("clean_data", "run_eda")
+
+    workflow.add_conditional_edges(
+        "clean_data",
+        route_after_clean_data_check,
+        {
+        "run_eda": "run_eda",
+        "end": END,
+        }
+    )
+    #workflow.add_edge("clean_data", "run_eda")
     workflow.add_edge("run_eda", END)
 
 
